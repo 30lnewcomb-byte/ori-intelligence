@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -227,6 +228,7 @@ def train_worker(
     pairs: list[tuple[str, str]],
     tokenizer: OriTokenizer,
     output: Path,
+    tokenizer_file: Path,
     *,
     epochs: int,
     d_model: int,
@@ -234,7 +236,11 @@ def train_worker(
     d_ff: int,
     learning_rate: float,
 ) -> None:
+    if not tokenizer_file.is_file():
+        raise FileNotFoundError(f"Tokenizer artifact not found: {tokenizer_file}")
+
     output.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(tokenizer_file, output / "ori_tokenizer.model")
     config = OriLMConfig(
         vocab_size=tokenizer.vocab_size,
         context_length=256,
@@ -288,6 +294,7 @@ def main() -> None:
         coding_examples(),
         tokenizer,
         Path(args.output_root) / "ori-coder",
+        Path(args.tokenizer),
         epochs=args.code_epochs,
         d_model=128,
         num_layers=3,
@@ -299,6 +306,7 @@ def main() -> None:
         cad_examples(),
         tokenizer,
         Path(args.output_root) / "ori-3d",
+        Path(args.tokenizer),
         epochs=args.cad_epochs,
         d_model=128,
         num_layers=3,
