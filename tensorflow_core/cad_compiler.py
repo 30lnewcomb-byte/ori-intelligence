@@ -9,19 +9,22 @@ MAX_OPERATIONS = 128
 MAX_MESH_VERTICES = 5000
 MAX_MESH_FACES = 10000
 MAX_NESTING_DEPTH = 16
+MAX_TOTAL_MESH_VERTICES = 5000
+MAX_TOTAL_MESH_FACES = 10000
 
 
 def _is_finite_number(value: Any) -> bool:
-    """Reject booleans, NaN, and infinity as geometry measurements."""
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(float(value))
-    )
+    """Reject booleans, NaN, infinity, and integers too large for a float."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (OverflowError, ValueError):
+        return False
 
 
 def compile_cad_plan(plan: dict[str, Any]) -> str:
-    """Compile a validated parametric CAD plan into OpenSCAD source."""
+    """Compile a validated, size-bounded parametric CAD plan into OpenSCAD."""
     if not isinstance(plan, dict):
         raise ValueError("CAD plan must be an object.")
 
@@ -31,9 +34,19 @@ def compile_cad_plan(plan: dict[str, Any]) -> str:
     if len(operations) > MAX_OPERATIONS:
         raise ValueError(f"CAD plan cannot contain more than {MAX_OPERATIONS} operations.")
 
+    operation_count = 0
+    total_mesh_vertices = 0
+    total_mesh_faces = 0
+
     def render_shape(op: dict[str, Any], indent: str = "", depth: int = 0) -> list[str]:
+        nonlocal operation_count, total_mesh_vertices, total_mesh_faces
+
         if depth > MAX_NESTING_DEPTH:
             raise ValueError("CAD plan nesting is too deep.")
+
+        operation_count += 1
+        if operation_count > MAX_OPERATIONS:
+            raise ValueError(f"CAD plan cannot contain more than {MAX_OPERATIONS} total operations.")
 
         kind = op.get("kind")
 
@@ -114,6 +127,17 @@ def compile_cad_plan(plan: dict[str, Any]) -> str:
             ):
                 raise ValueError(
                     f"mesh.triangles must contain 1 to {MAX_MESH_FACES} three-index faces."
+                )
+
+            total_mesh_vertices += len(vertices)
+            total_mesh_faces += len(triangles)
+            if total_mesh_vertices > MAX_TOTAL_MESH_VERTICES:
+                raise ValueError(
+                    f"CAD plan cannot contain more than {MAX_TOTAL_MESH_VERTICES} total mesh vertices."
+                )
+            if total_mesh_faces > MAX_TOTAL_MESH_FACES:
+                raise ValueError(
+                    f"CAD plan cannot contain more than {MAX_TOTAL_MESH_FACES} total mesh faces."
                 )
 
             vertex_count = len(vertices)
