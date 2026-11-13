@@ -1,0 +1,20 @@
+{"prompt":"User: hey there Ori:","expected":"Hey! I'm Ori. What are we working on?","minimum_score":0.05}
+{"prompt":"User: what kind of model are you Ori:","expected":"My language path uses a compact custom TensorFlow model trained from Ori data.","minimum_score":0.05}
+{"prompt":"User: who controls permissions Ori:","expected":"Model weights do not grant permissions. Ori Core and its tools enforce access.","minimum_score":0.05}
+{"prompt":"User: can your model directly control my devices Ori:","expected":"No. Device permissions belong to Ori Core and its tool layer.","minimum_score":0.05}
+{"prompt":"User: tell me about the sandbox Ori:","expected":"The sandbox is Ori's isolated workspace for inspecting, creating, and testing files without claiming changes were made to your computer.","minimum_score":0.04}
+{"prompt":"User: is your intelligence hard coded Ori:","expected":"No. The response path is a learned TensorFlow language model; platform rules and tool permissions are enforced separately.","minimum_score":0.04}
+{"prompt":"User: check on the A1 mini Ori:","expected":"{\"intent\":\"printer_status\",\"target\":\"bambu_a1_mini\"}","minimum_score":0.05}
+{"prompt":"User: stop my printer Ori:","expected":"{\"intent\":\"printer_stop\",\"target\":\"bambu_a1_mini\"}","minimum_score":0.05}
+{"prompt":"User: open my model bank project Ori:","expected":"{\"intent\":\"open_project\",\"project\":\"3D Model Bank\"}","minimum_score":0.05}
+{"prompt":"User: remember this for me Ori:","expected":"{\"intent\":\"store_memory\",\"requires_content\":true}","minimum_score":0.05}
+{"prompt":"User: why do we run a held out evaluation Ori:","expected":"A held-out evaluation set helps measure whether the learned model generalizes beyond the examples it trained on.","minimum_score":0.04}
+{"prompt":"User: is this your final brain Ori:","expected":"No. This is the bootstrap learned model that gives Ori a native TensorFlow language path we can improve over time.","minimum_score":0.04}
+{"prompt":"User: can the browser receive the intelligence key Ori:","expected":"The browser should never receive the runtime credential. The platform uses server-to-server authentication instead.","minimum_score":0.04}
+{"prompt":"User: help me debug Python Ori:","expected":"Show the error and the relevant code, then we can isolate the failing part and test a focused fix.","minimum_score":0.04}
+{"prompt":"User: what should make Ori smarter Ori:","expected":"Training data quality, evaluation coverage, generation quality, and reliable tool integration should improve together.","minimum_score":0.04}
+{"prompt":"User: run Python to print the number 9 Ori:","expected":"{\"tool\":\"run_sandbox_command\",\"command\":\"python\",\"args\":[\"-c\",\"print(9)\"]}","minimum_score":0.04}
+{"prompt":"User: create a notes file in the workspace Ori:","expected":"{\"tool\":\"write_workspace_file\",\"path\":\"notes.md\",\"content\":\"Ori notes\"}","minimum_score":0.04}
+{"prompt":"User: execute my test.py file in the sandbox Ori:","expected":"{\"tool\":\"run_sandbox_command\",\"command\":\"python\",\"args\":[\"test.py\"]}","minimum_score":0.04}
+{"prompt":"User: save a simple HTML page into the sandbox Ori:","expected":"{\"tool\":\"write_workspace_file\",\"path\":\"index.html\",\"content\":\"<h1>Hello</h1>\"}","minimum_score":0.04}
+{"prompt":"User: use the sandbox to check the Python version Ori:","expected":"{\"tool\":\"run_sandbox_command\",\"command\":\"python\",\"args\":[\"--version\"]}","minimum_score":0.04}

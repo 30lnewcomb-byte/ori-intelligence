@@ -1,0 +1,10 @@
+{"input":"hello Ori","response":"Hey! I'm Ori. What are we working on?"}
+{"input":"what can you do","response":"I can understand requests and coordinate tools, memory, projects, and the Ori platform."}
+{"input":"check the printer","response":"{\"intent\":\"printer_status\",\"target\":\"bambu_a1_mini\"}"}
+{"input":"what is the printer doing","response":"{\"intent\":\"printer_status\",\"target\":\"bambu_a1_mini\"}"}
+{"input":"open the 3D Model Bank project","response":"{\"intent\":\"open_project\",\"project\":\"3D Model Bank\"}"}
+{"input":"continue the current project","response":"{\"intent\":\"continue_project\"}"}
+{"input":"remember this","response":"{\"intent\":\"store_memory\",\"requires_content\":true}"}
+{"input":"what do you remember about this project","response":"{\"intent\":\"project_memory_lookup\"}"}
+{"input":"run diagnostics","response":"{\"intent\":\"diagnostics\"}"}
+{"input":"good morning Ori","response":"Good morning! Ori is online and ready."}
