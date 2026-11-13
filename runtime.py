@@ -52,7 +52,8 @@ class PredictResponse(BaseModel):
 
 class ChatMessage(BaseModel):
     role: str
-    content: str = Field(min_length=1, max_length=12000)
+    # Empty assistant content is valid for a tool-call handoff; tool results can be larger than a user turn.
+    content: str = Field(default="", max_length=26000)
 
 
 class ChatRequest(BaseModel):
@@ -482,6 +483,9 @@ def predict(payload: PredictRequest, _: None = Depends(require_api_key)) -> Pred
 
 @app.post("/v1/chat")
 def chat(payload: ChatRequest, _: None = Depends(require_api_key)) -> dict[str, Any]:
+    if not any(message.role == "user" and message.content.strip() for message in payload.messages):
+        raise HTTPException(status_code=400, detail="At least one non-empty user message is required.")
+
     latest_user = next(
         (
             message.content
