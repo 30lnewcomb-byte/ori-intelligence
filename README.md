@@ -34,6 +34,20 @@ Model training is intentionally separate from the normal Render web-service buil
 
 The model uses a SentencePiece BPE tokenizer shared by both stages, and a small English replay set during fine-tuning helps reduce catastrophic forgetting. This is still a compact bootstrap model, not a general-purpose assistant. Normal web-service and Docker builds skip training; set `ORI_TRAIN_MODELS=true` only in a controlled training environment with enough CPU, memory, time, and artifact storage.
 
+## Deployment and model artifacts
+
+The standalone Render service builds from this repository root with Python 3.12.9 and starts:
+
+```bash
+uvicorn runtime:app --host 0.0.0.0 --port $PORT
+```
+
+The existing trained Core and Ori Small artifacts were imported once from the legacy runtime and saved in Render's persistent **build cache**. Each build restores those files into the service workspace; the service does not retrain them. This is a build-cache strategy, not a mounted persistent disk. If the cache is cleared, the build intentionally fails until the artifacts are restored or a deliberate training build is run.
+
+The one-time bootstrap variables `ORI_MODEL_SOURCE_URL` and `ORI_MODEL_TRANSFER_TOKEN` are not needed after the first successful cache import and should remain unset. `ORI_TRAIN_MODELS` defaults to `false`; training is never an automatic recovery path.
+
+Current artifact baseline: Ori Core and Ori Small are loaded. The specialist workers are not yet included in this migration and are reported separately by `/v1/status`.
+
 ## API
 
 Authenticated endpoints:
