@@ -32,7 +32,7 @@ python tensorflow_core/train_ori.py --data tensorflow_core/data/ori_training_exp
 
 Model training is intentionally separate from the normal Render web-service build. Set `ORI_TRAIN_MODELS=true` only for a deliberate training build; otherwise deployment installs dependencies and starts the API without pretending that unbuilt model artifacts exist.
 
-The English foundation is intentionally bounded so the free Render build remains practical. The model uses a SentencePiece BPE tokenizer shared by both stages, and a small English replay set during fine-tuning helps reduce catastrophic forgetting. This is still a compact bootstrap model, not a general-purpose assistant.
+The model uses a SentencePiece BPE tokenizer shared by both stages, and a small English replay set during fine-tuning helps reduce catastrophic forgetting. This is still a compact bootstrap model, not a general-purpose assistant. Normal web-service and Docker builds skip training; set `ORI_TRAIN_MODELS=true` only in a controlled training environment with enough CPU, memory, time, and artifact storage.
 
 ## API
 
@@ -76,6 +76,7 @@ Runtime:
 - `ORI_LM_DIR` — path to the `ori-small` artifact directory; defaults to `artifacts/ori-small`.
 - `ORI_MODEL_DIR` — path to the intent-classifier model directory; defaults to `models`.
 - `LOG_LEVEL` — runtime log level; defaults to `INFO`.
+- `ORI_TRAIN_MODELS` — opt-in build flag; defaults to `false` so normal deployments do not train models.
 
 Web application:
 
