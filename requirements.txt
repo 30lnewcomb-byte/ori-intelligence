@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
 pydantic
-tensorflow-cpu
+numpy>=1.26,<2.2
+tensorflow-cpu==2.20.0
 sentencepiece>=0.2.0,<0.3.0
