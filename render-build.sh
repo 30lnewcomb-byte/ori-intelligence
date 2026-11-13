@@ -1,31 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")"
 
 CACHE_ROOT="${XDG_CACHE_HOME:-/opt/render/project/.cache}/ori-tensorflow-models"
 CACHE_VERSION="ori-models-v1"
 CACHE_DIR="${CACHE_ROOT}/${CACHE_VERSION}"
-MODEL_ROOT="services/intelligence"
-CORE_MODEL="${MODEL_ROOT}/models/ori_core.keras"
-LM_DIR="${MODEL_ROOT}/artifacts/ori-small"
-CODER_DIR="${MODEL_ROOT}/artifacts/ori-coder"
-CAD_DIR="${MODEL_ROOT}/artifacts/ori-3d"
+MODEL_ROOT="."
+CORE_MODEL="models/ori_core.keras"
+LM_DIR="artifacts/ori-small"
+CODER_DIR="artifacts/ori-coder"
+CAD_DIR="artifacts/ori-3d"
 
-mkdir -p "${MODEL_ROOT}/models" "${MODEL_ROOT}/artifacts"
+mkdir -p models artifacts
 
 echo "Installing Ori TensorFlow runtime dependencies..."
-pip install -r services/intelligence/requirements.txt
+pip install -r requirements.txt
 
 fingerprint() {
   sha256sum \
-    services/intelligence/tensorflow_core/train_core.py \
-    services/intelligence/tensorflow_core/train_ori.py \
-    services/intelligence/tensorflow_core/train_specialists.py \
-    services/intelligence/tensorflow_core/model.py \
-    services/intelligence/tensorflow_core/ori_model.py \
-    services/intelligence/tensorflow_core/specialized_workers.py \
-    services/intelligence/tensorflow_core/data/ori_training_expanded.jsonl \
+    tensorflow_core/train_core.py \
+    tensorflow_core/train_ori.py \
+    tensorflow_core/train_specialists.py \
+    tensorflow_core/model.py \
+    tensorflow_core/ori_model.py \
+    tensorflow_core/specialized_workers.py \
+    tensorflow_core/data/ori_training_expanded.jsonl \
     | sha256sum | cut -d' ' -f1
 }
 
@@ -41,8 +41,8 @@ if [[ -f "${CACHE_DIR}/fingerprint" && "$(cat "${CACHE_DIR}/fingerprint")" == "$
       && -f "${CACHE_DIR}/artifacts/ori-3d/config.json" \
       && -f "${CACHE_DIR}/artifacts/ori-3d/model.weights.h5" ]]; then
   echo "Restoring cached Ori models (${CACHE_VERSION})."
-  rm -rf "${MODEL_ROOT}/models/ori_core.keras" "${MODEL_ROOT}/artifacts/ori-small" "${MODEL_ROOT}/artifacts/ori-coder" "${MODEL_ROOT}/artifacts/ori-3d"
-  mkdir -p "${MODEL_ROOT}/models" "${MODEL_ROOT}/artifacts"
+  rm -rf models/ori_core.keras artifacts/ori-small artifacts/ori-coder artifacts/ori-3d
+  mkdir -p models artifacts
   cp "${CACHE_DIR}/models/ori_core.keras" "${CORE_MODEL}"
   cp -a "${CACHE_DIR}/artifacts/ori-small" "${LM_DIR}"
   cp -a "${CACHE_DIR}/artifacts/ori-coder" "${CODER_DIR}"
@@ -53,22 +53,22 @@ fi
 
 echo "No matching trained model cache found. Training Ori models once for fingerprint ${MODEL_FINGERPRINT}..."
 
-python services/intelligence/tensorflow_core/train_core.py \
+python tensorflow_core/train_core.py \
   --output "${CORE_MODEL}" \
   --epochs 30 \
   --batch-size 8 \
   --validation-split 0.2
 
-python services/intelligence/tensorflow_core/train_ori.py \
-  --data services/intelligence/tensorflow_core/data/ori_training_expanded.jsonl \
+python tensorflow_core/train_ori.py \
+  --data tensorflow_core/data/ori_training_expanded.jsonl \
   --output "${LM_DIR}" \
   --epochs 20 \
   --batch-size 8 \
   --validation-split 0.2
 
-python services/intelligence/tensorflow_core/train_specialists.py \
+python tensorflow_core/train_specialists.py \
   --tokenizer "${LM_DIR}/ori_tokenizer.model" \
-  --output-root services/intelligence/artifacts \
+  --output-root artifacts \
   --code-epochs 10 \
   --cad-epochs 10
 
