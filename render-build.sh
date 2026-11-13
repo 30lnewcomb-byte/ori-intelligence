@@ -137,9 +137,9 @@ fi
 # temporarily unavailable; fail clearly so an incomplete runtime is not
 # mistaken for a ready model service.
 if [[ "${ORI_TRAIN_MODELS:-false}" != "true" ]]; then
-  echo "No cached models or authenticated model source configured."
-  echo "Skipping training; /v1/status will report model readiness as false."
-  exit 0
+  echo "ERROR: No cached models or authenticated model source configured."
+  echo "Refusing to deploy an incomplete inference service. Restore the artifacts or opt in to a deliberate training build."
+  exit 1
 fi
 
 echo "ORI_TRAIN_MODELS=true: training Ori models as an explicit opt-in..."
