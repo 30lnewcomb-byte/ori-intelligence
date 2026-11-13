@@ -46,7 +46,7 @@ The existing trained Core and Ori Small artifacts were imported once from the le
 
 The one-time bootstrap variables `ORI_MODEL_SOURCE_URL` and `ORI_MODEL_TRANSFER_TOKEN` are not needed after the first successful cache import and should remain unset. `ORI_TRAIN_MODELS` defaults to `false`; training is never an automatic recovery path.
 
-Current artifact baseline: Ori Core and Ori Small are loaded. The specialist workers are not yet included in this migration and are reported separately by `/v1/status`.
+Current artifact baseline: Ori Core and Ori Small load successfully in the standalone service. The specialist worker code and opt-in trainer are present, but neither `ori-coder` nor `ori-3d` is currently loaded; the legacy runtime also reports `workers=none`. Both workers remain unavailable until their trained artifacts are deliberately produced and deployed. No worker training runs automatically.
 
 ## API
 
