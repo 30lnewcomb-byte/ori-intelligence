@@ -17,11 +17,11 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from tensorflow_core.model import LABELS, OriCoreModel
+from tensorflow_core.cad_compiler import compile_cad_plan
 from tensorflow_core.ori_model import OriLMConfig, OriLanguageModel, OriTokenizer
 from tensorflow_core.specialized_workers import (
     WORKERS,
     LoadedWorker,
-    compile_cad_plan,
     generate_worker,
     load_worker,
 )
