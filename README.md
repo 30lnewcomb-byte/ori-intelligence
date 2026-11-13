@@ -24,13 +24,13 @@ The production intelligence path no longer depends on a hosted external language
 
 The language model is trained in two stages: it first learns general English from a bounded public-domain Project Gutenberg corpus, then fine-tunes on `tensorflow_core/data/ori_training_expanded.jsonl` for Ori-specific behavior.
 
-From `services/intelligence/tensorflow_core`:
+From the repository root:
 
 ```bash
-python train_ori.py --data data/ori_training_expanded.jsonl --output artifacts/ori-small
+python tensorflow_core/train_ori.py --data tensorflow_core/data/ori_training_expanded.jsonl --output artifacts/ori-small
 ```
 
-For the deployed intelligence image, the Docker build trains this bootstrap model and packages its weights with the runtime.
+Model training is intentionally separate from the normal Render web-service build. Set `ORI_TRAIN_MODELS=true` only for a deliberate training build; otherwise deployment installs dependencies and starts the API without pretending that unbuilt model artifacts exist.
 
 The English foundation is intentionally bounded so the free Render build remains practical. The model uses a SentencePiece BPE tokenizer shared by both stages, and a small English replay set during fine-tuning helps reduce catastrophic forgetting. This is still a compact bootstrap model, not a general-purpose assistant.
 
@@ -86,9 +86,9 @@ Never commit these credentials or expose them to client-side code.
 
 ## Current state
 
-The web chat route is wired to the native TensorFlow runtime, and the runtime can load and generate from the trained `ori-small` artifact.
+The runtime is ready to load native TensorFlow artifacts when they are present. A healthy API process does not imply that its language model has been trained or loaded; check `/v1/status` before routing production chat traffic.
 
-A live deployment is only considered connected when the runtime URL and API key are configured and `/v1/status` confirms that `ori-small` is loaded.
+A live language-model deployment is only considered ready when the runtime URL and API key are configured and `/v1/status` confirms that `language_model_loaded` is true. Core and specialist readiness are reported independently.
 
 ## Rules
 

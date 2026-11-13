@@ -3,82 +3,40 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-CACHE_ROOT="${XDG_CACHE_HOME:-/opt/render/project/.cache}/ori-tensorflow-models"
-CACHE_VERSION="ori-models-v1"
-CACHE_DIR="${CACHE_ROOT}/${CACHE_VERSION}"
-MODEL_ROOT="."
-CORE_MODEL="models/ori_core.keras"
-LM_DIR="artifacts/ori-small"
-CODER_DIR="artifacts/ori-coder"
-CAD_DIR="artifacts/ori-3d"
+echo "Installing Ori Intelligence runtime dependencies..."
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 
-mkdir -p models artifacts
-
-echo "Installing Ori TensorFlow runtime dependencies..."
-pip install -r requirements.txt
-
-fingerprint() {
-  sha256sum \
-    tensorflow_core/train_core.py \
-    tensorflow_core/train_ori.py \
-    tensorflow_core/train_specialists.py \
-    tensorflow_core/model.py \
-    tensorflow_core/ori_model.py \
-    tensorflow_core/specialized_workers.py \
-    tensorflow_core/data/ori_training_expanded.jsonl \
-    | sha256sum | cut -d' ' -f1
-}
-
-MODEL_FINGERPRINT="$(fingerprint)"
-
-if [[ -f "${CACHE_DIR}/fingerprint" && "$(cat "${CACHE_DIR}/fingerprint")" == "${MODEL_FINGERPRINT}" \
-      && -f "${CACHE_DIR}/models/ori_core.keras" \
-      && -f "${CACHE_DIR}/artifacts/ori-small/config.json" \
-      && -f "${CACHE_DIR}/artifacts/ori-small/model.weights.h5" \
-      && -f "${CACHE_DIR}/artifacts/ori-small/ori_tokenizer.model" \
-      && -f "${CACHE_DIR}/artifacts/ori-coder/config.json" \
-      && -f "${CACHE_DIR}/artifacts/ori-coder/model.weights.h5" \
-      && -f "${CACHE_DIR}/artifacts/ori-3d/config.json" \
-      && -f "${CACHE_DIR}/artifacts/ori-3d/model.weights.h5" ]]; then
-  echo "Restoring cached Ori models (${CACHE_VERSION})."
-  rm -rf models/ori_core.keras artifacts/ori-small artifacts/ori-coder artifacts/ori-3d
-  mkdir -p models artifacts
-  cp "${CACHE_DIR}/models/ori_core.keras" "${CORE_MODEL}"
-  cp -a "${CACHE_DIR}/artifacts/ori-small" "${LM_DIR}"
-  cp -a "${CACHE_DIR}/artifacts/ori-coder" "${CODER_DIR}"
-  cp -a "${CACHE_DIR}/artifacts/ori-3d" "${CAD_DIR}"
-  echo "Cached models restored; no training required."
+# Model training is deliberately opt-in. A web-service deployment should
+# start the API predictably rather than run hours of CPU-heavy training in
+# Render's build phase. Deploy pre-trained artifacts with the service, or
+# explicitly set ORI_TRAIN_MODELS=true for a dedicated training build.
+if [[ "${ORI_TRAIN_MODELS:-false}" != "true" ]]; then
+  echo "ORI_TRAIN_MODELS is not true; skipping model training."
+  echo "The API will start, but /v1/status will report model readiness accurately."
   exit 0
 fi
 
-echo "No matching trained model cache found. Training Ori models once for fingerprint ${MODEL_FINGERPRINT}..."
+mkdir -p models artifacts
 
+echo "ORI_TRAIN_MODELS=true: training Ori models as an explicit opt-in..."
 python tensorflow_core/train_core.py \
-  --output "${CORE_MODEL}" \
-  --epochs 30 \
+  --output models/ori_core.keras \
+  --epochs "${ORI_CORE_EPOCHS:-30}" \
   --batch-size 8 \
   --validation-split 0.2
 
 python tensorflow_core/train_ori.py \
   --data tensorflow_core/data/ori_training_expanded.jsonl \
-  --output "${LM_DIR}" \
-  --epochs 20 \
+  --output artifacts/ori-small \
+  --epochs "${ORI_SMALL_EPOCHS:-20}" \
   --batch-size 8 \
   --validation-split 0.2
 
 python tensorflow_core/train_specialists.py \
-  --tokenizer "${LM_DIR}/ori_tokenizer.model" \
+  --tokenizer artifacts/ori-small/ori_tokenizer.model \
   --output-root artifacts \
-  --code-epochs 10 \
-  --cad-epochs 10
+  --code-epochs "${ORI_CODER_EPOCHS:-10}" \
+  --cad-epochs "${ORI_3D_EPOCHS:-10}"
 
-echo "Saving trained Ori models to Render's persistent build cache..."
-rm -rf "${CACHE_DIR}"
-mkdir -p "${CACHE_DIR}/models" "${CACHE_DIR}/artifacts"
-cp "${CORE_MODEL}" "${CACHE_DIR}/models/ori_core.keras"
-cp -a "${LM_DIR}" "${CACHE_DIR}/artifacts/ori-small"
-cp -a "${CODER_DIR}" "${CACHE_DIR}/artifacts/ori-coder"
-cp -a "${CAD_DIR}" "${CACHE_DIR}/artifacts/ori-3d"
-printf '%s\n' "${MODEL_FINGERPRINT}" > "${CACHE_DIR}/fingerprint"
-
-echo "Ori model training complete and cached. Future normal deploys will restore these artifacts instead of retraining."
+echo "Ori model training completed."
