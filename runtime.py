@@ -3,22 +3,17 @@
 from __future__ import annotations
 
 import hmac
-import io
 import json
 import logging
 import os
 import re
-import shutil
-import stat
-import tempfile
 import uuid
-import zipfile
 from pathlib import Path
 from threading import Lock, Thread
 from typing import Any
 
 import tensorflow as tf
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from tensorflow_core.model import LABELS, OriCoreModel
@@ -399,115 +394,6 @@ def title(payload: TitleRequest, _: None = Depends(require_api_key)) -> dict[str
         candidate = " ".join(words[:7])
     return {"title": candidate[:56], "model": "ori-small", "version": APP_VERSION}
 
-
-
-@app.post("/internal/import-models")
-async def import_models(
-    request: Request,
-    authorization: str | None = Header(default=None),
-    x_ori_model_transfer: str | None = Header(default=None),
-) -> dict[str, Any]:
-    """One-time authenticated migration endpoint for existing trained weights."""
-    require_api_key(authorization)
-    expected_token = os.getenv("ORI_MODEL_TRANSFER_TOKEN", "").strip()
-    if not expected_token or not x_ori_model_transfer or not hmac.compare_digest(
-        x_ori_model_transfer, expected_token
-    ):
-        raise HTTPException(status_code=401, detail="Unauthorized model transfer.")
-
-    archive_path: Path | None = None
-    stage_root: Path | None = None
-    try:
-        content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > 512 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="Model archive exceeds 512 MiB.")
-        total_bytes = 0
-        with tempfile.NamedTemporaryFile(prefix=".ori-model-upload-", suffix=".zip", dir=".", delete=False) as uploaded:
-            archive_path = Path(uploaded.name)
-            async for chunk in request.stream():
-                total_bytes += len(chunk)
-                if total_bytes > 512 * 1024 * 1024:
-                    raise HTTPException(status_code=413, detail="Model archive exceeds 512 MiB.")
-                uploaded.write(chunk)
-        if total_bytes == 0:
-            raise HTTPException(status_code=413, detail="Model archive is empty.")
-
-        stage_root = Path(tempfile.mkdtemp(prefix=".ori-model-import-", dir="."))
-        logger.info("Received disk-backed Ori model archive: bytes=%s", total_bytes)
-        try:
-            with zipfile.ZipFile(archive_path) as archive:
-                members = archive.infolist()
-                allowed = (
-                    "models/",
-                    "artifacts/ori-small/",
-                    "artifacts/ori-coder/",
-                    "artifacts/ori-3d/",
-                )
-                for member in members:
-                    member_path = Path(member.filename)
-                    if (
-                        member_path.is_absolute()
-                        or ".." in member_path.parts
-                        or not member.filename.startswith(allowed)
-                    ):
-                        raise HTTPException(status_code=400, detail="Archive contains an invalid path.")
-                    mode = member.external_attr >> 16
-                    if stat.S_ISLNK(mode):
-                        raise HTTPException(status_code=400, detail="Archive symlinks are not allowed.")
-                archive.extractall(stage_root)
-        except zipfile.BadZipFile as exc:
-            raise HTTPException(status_code=400, detail="Invalid model archive.") from exc
-
-        required = (
-            stage_root / "models" / "ori_core.keras",
-            stage_root / "artifacts" / "ori-small" / "config.json",
-            stage_root / "artifacts" / "ori-small" / "ori_tokenizer.model",
-            stage_root / "artifacts" / "ori-small" / "model.weights.h5",
-        )
-        if not all(path.is_file() for path in required):
-            raise HTTPException(status_code=400, detail="Archive is missing required Ori Core or Ori Small files.")
-
-        MODEL_DIR.mkdir(parents=True, exist_ok=True)
-        source_core = stage_root / "models" / "ori_core.keras"
-        staged_core = MODEL_DIR / ".ori_core.importing"
-        shutil.copy2(source_core, staged_core)
-        os.replace(staged_core, MODEL_DIR / "ori_core.keras")
-
-        WORKER_ROOT.mkdir(parents=True, exist_ok=True)
-        installed = []
-        for model_name in ("ori-small", "ori-coder", "ori-3d"):
-            source_dir = stage_root / "artifacts" / model_name
-            if not source_dir.is_dir():
-                continue
-            target_dir = WORKER_ROOT / model_name
-            staged_dir = WORKER_ROOT / f".{model_name}.importing"
-            if staged_dir.exists():
-                shutil.rmtree(staged_dir)
-            shutil.copytree(source_dir, staged_dir)
-            backup_dir = WORKER_ROOT / f".{model_name}.previous"
-            if backup_dir.exists():
-                shutil.rmtree(backup_dir)
-            if target_dir.exists():
-                os.replace(target_dir, backup_dir)
-            os.replace(staged_dir, target_dir)
-            if backup_dir.exists():
-                shutil.rmtree(backup_dir)
-            installed.append(model_name)
-
-        # Refresh in-memory models immediately after the validated files land.
-        load_models_in_background()
-        return {
-            "status": "imported",
-            "models_installed": installed,
-            "core_model_loaded": CORE_MODEL is not None,
-            "language_model_loaded": LANGUAGE_MODEL is not None,
-            "workers_loaded": sorted(SPECIALIZED_WORKERS),
-        }
-    finally:
-        if stage_root is not None:
-            shutil.rmtree(stage_root, ignore_errors=True)
-        if archive_path is not None:
-            archive_path.unlink(missing_ok=True)
 
 
 @app.get("/")
