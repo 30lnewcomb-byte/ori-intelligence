@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import re
-import uuid
 from pathlib import Path
 from threading import Lock, Thread
 from typing import Any
@@ -18,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from tensorflow_core.model import LABELS, OriCoreModel
 from tensorflow_core.cad_compiler import compile_cad_plan
+from tensorflow_core.chat_protocol import extract_json_object, normalize_tool_call
 from tensorflow_core.ori_model import OriLMConfig, OriLanguageModel, OriTokenizer
 from tensorflow_core.specialized_workers import (
     WORKERS,
@@ -296,79 +296,6 @@ def build_prompt(
             turns.append(f"Tool: {content}")
 
     return " ".join(turns[-8:]) + " Ori:"
-def extract_json_object(text: str) -> dict[str, Any] | None:
-    decoder = json.JSONDecoder()
-    for match in re.finditer(r"\{", text):
-        try:
-            value, _ = decoder.raw_decode(text[match.start():])
-        except json.JSONDecodeError:
-            continue
-        if isinstance(value, dict):
-            return value
-    return None
-
-
-def normalize_tool_call(
-    content: str,
-    tools: list[dict[str, Any]] | None,
-) -> tuple[str, list[dict[str, Any]]]:
-    if not tools:
-        return content, []
-
-    allowed: dict[str, dict[str, Any]] = {}
-    for tool in tools:
-        if tool.get("type") != "function":
-            continue
-        function = tool.get("function") or {}
-        name = function.get("name")
-        if isinstance(name, str) and name:
-            allowed[name] = function
-
-    candidate = extract_json_object(content)
-    if not candidate:
-        return content, []
-
-    tool_name = candidate.get("tool")
-    if not isinstance(tool_name, str) or tool_name not in allowed:
-        return content, []
-
-    call_id = f"call_{uuid.uuid4().hex[:12]}"
-    arguments = {
-        key: value for key, value in candidate.items() if key != "tool"
-    }
-
-    if tool_name == "run_sandbox_command":
-        command = arguments.get("command")
-        args = arguments.get("args", [])
-        if not isinstance(command, str) or not command:
-            return content, []
-        if not isinstance(args, list) or not all(
-            isinstance(value, str) for value in args
-        ):
-            return content, []
-        arguments = {"command": command, "args": args[:32]}
-
-    elif tool_name == "write_workspace_file":
-        path = arguments.get("path")
-        file_content = arguments.get("content")
-        if not isinstance(path, str) or not isinstance(file_content, str):
-            return content, []
-        arguments = {"path": path, "content": file_content}
-
-    return "", [
-        {
-            "id": call_id,
-            "type": "function",
-            "function": {
-                "name": tool_name,
-                "arguments": json.dumps(arguments, separators=(",", ":")),
-            },
-        }
-    ]
-
-
-
-
 @app.post("/v1/title")
 def title(payload: TitleRequest, _: None = Depends(require_api_key)) -> dict[str, Any]:
     if LANGUAGE_MODEL is None:
