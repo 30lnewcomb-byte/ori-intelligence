@@ -14,7 +14,6 @@ from typing import Any
 import tensorflow as tf
 
 from tensorflow_core.ori_model import OriLMConfig, OriLanguageModel, OriTokenizer
-from tensorflow_core.cad_compiler import compile_cad_plan
 
 
 @dataclass(frozen=True)
