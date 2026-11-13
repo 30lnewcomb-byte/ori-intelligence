@@ -20,7 +20,6 @@ import tensorflow as tf
 
 from english_corpus import download_public_domain_english
 from ori_model import OriLMConfig, OriLanguageModel, OriTokenizer
-from train_specialists import coding_examples, cad_examples, train_worker
 
 
 class MaskedCausalLoss(tf.keras.losses.Loss):
@@ -471,32 +470,7 @@ def main() -> None:
     )
     print(f"Greeting smoke sample: {sample!r}")
 
-    # The existing Render service invokes this script directly. Train the
-    # internal coding and 3D specialists here so no dashboard build-command
-    # change is required.
-    print("Training internal specialist workers...")
-    train_worker(
-        "ori-coder",
-        coding_examples(),
-        tokenizer,
-        Path("artifacts") / "ori-coder",
-        epochs=10,
-        d_model=128,
-        num_layers=3,
-        d_ff=512,
-        learning_rate=8e-5,
-    )
-    train_worker(
-        "ori-3d",
-        cad_examples(),
-        tokenizer,
-        Path("artifacts") / "ori-3d",
-        epochs=10,
-        d_model=128,
-        num_layers=3,
-        d_ff=512,
-        learning_rate=8e-5,
-    )
+    # Specialist worker bootstrap is managed separately by render-build.sh.
     print(f"Ori model saved to {output}")
 
 

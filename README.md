@@ -30,9 +30,13 @@ From the repository root:
 python tensorflow_core/train_ori.py --data tensorflow_core/data/ori_training_expanded.jsonl --output artifacts/ori-small
 ```
 
-Model training is intentionally separate from the normal Render web-service build. Set `ORI_TRAIN_MODELS=true` only for a deliberate training build; otherwise deployment installs dependencies and starts the API without pretending that unbuilt model artifacts exist.
+Model training is intentionally separate from normal web-service startup. **The recommended improvement path is incremental fine-tuning from the saved Core and Ori Small checkpoints**, not rebuilding either model. The incremental trainer loads the existing weights, keeps the current vocabulary/tokenizer unchanged, uses a small batch and one epoch by default, replays a limited sample of earlier training examples, and evaluates the candidate against held-out data. Each candidate is kept only when its evaluation improves without a regression; otherwise the original checkpoint is copied forward unchanged.
 
-The model uses a SentencePiece BPE tokenizer shared by both stages, and a small English replay set during fine-tuning helps reduce catastrophic forgetting. This is still a compact bootstrap model, not a general-purpose assistant. Normal web-service and Docker builds skip training; set `ORI_TRAIN_MODELS=true` only in a controlled training environment with enough CPU, memory, time, and artifact storage.
+The incremental path is opt-in through `ORI_FINE_TUNE_REVISION`. A unique revision is processed once and recorded in Render's build cache, so leaving the variable set does not retrain on every code deployment. This training runs in the Render build pipeline, not inside the live API process. It therefore does not consume the running service's free instance hours, but it does consume build-pipeline minutes. Normal deployments do no training.
+
+The full from-scratch path is deliberately blocked unless both `ORI_TRAIN_MODELS=true` and `ORI_ALLOW_FULL_REBUILD=true` are set. Specialist workers are also separate: their first bootstrap requires both `ORI_TRAIN_SPECIALISTS=true` and `ORI_ALLOW_SPECIALIST_BOOTSTRAP=true`. Neither path is enabled by default.
+
+The model uses a SentencePiece BPE tokenizer shared by both stages, and replay examples help reduce catastrophic forgetting during fine-tuning. This remains a compact bootstrap model, not a general-purpose assistant.
 
 ## Deployment and model artifacts
 
@@ -90,10 +94,13 @@ Runtime:
 - `ORI_LM_DIR` — path to the `ori-small` artifact directory; defaults to `artifacts/ori-small`.
 - `ORI_MODEL_DIR` — path to the intent-classifier model directory; defaults to `models`.
 - `LOG_LEVEL` — runtime log level; defaults to `INFO`.
-- `ORI_TRAIN_MODELS` — opt-in full training flag; defaults to `false`. When enabled, rebuilds Core, Ori Small, and both specialists.
-- `ORI_TRAIN_SPECIALISTS` — opt-in worker-only training flag; defaults to `false`. When enabled, trains `ori-coder` and `ori-3d` while reusing cached Core/Ori Small artifacts.
+- `ORI_FINE_TUNE_REVISION` — optional unique revision ID that runs one incremental Core/Ori Small fine-tune from the existing checkpoints. Each revision runs once; the completion marker is stored in the Render build cache.
+- `ORI_CORE_FINE_TUNE_EPOCHS` and `ORI_SMALL_FINE_TUNE_EPOCHS` — incremental epochs, limited to 1-2; default `1`.
+- `ORI_FINE_TUNE_BATCH_SIZE` — incremental batch size, limited to 1-4; default `2`.
+- `ORI_TRAIN_MODELS` — legacy full-rebuild switch; blocked unless `ORI_ALLOW_FULL_REBUILD=true` is also set.
+- `ORI_TRAIN_SPECIALISTS` — first-time worker bootstrap switch; blocked unless `ORI_ALLOW_SPECIALIST_BOOTSTRAP=true` is also set.
 
-A normal deploy restores cached models without training. A deliberate specialist-only build can set `ORI_TRAIN_SPECIALISTS=true`; its finished worker artifacts are saved back into Render's build cache for later deploys. Training is not triggered by ordinary code changes.
+A normal deploy restores cached models without training. Incremental candidates are evaluated before promotion, and both original cached checkpoints remain untouched until candidate outputs are complete. Fine-tuning consumes Render build-pipeline minutes, not the live service's free instance hours.
 
 Web application:
 

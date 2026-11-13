@@ -1,0 +1,30 @@
+{"label":"conversation","text":"yo, are you around?"}
+{"label":"conversation","text":"let's pick up where we left off"}
+{"label":"conversation","text":"okay, that sounds good"}
+{"label":"conversation","text":"we can chat about it"}
+{"label":"conversation","text":"are you ready to keep going"}
+{"label":"question","text":"what does a build cache do"}
+{"label":"question","text":"how is a model checkpoint loaded"}
+{"label":"question","text":"why does the service wait for model readiness"}
+{"label":"question","text":"what is a tokenizer"}
+{"label":"question","text":"explain the difference between a model and its weights"}
+{"label":"coding","text":"add a helper function to this Python module"}
+{"label":"coding","text":"show me the TypeScript for this API route"}
+{"label":"coding","text":"refactor this component"}
+{"label":"coding","text":"write a unit test for this function"}
+{"label":"coding","text":"implement a JSON parser"}
+{"label":"planning","text":"split the launch into milestones"}
+{"label":"planning","text":"prioritize these features"}
+{"label":"planning","text":"outline a low-cost deployment plan"}
+{"label":"planning","text":"organize the backlog"}
+{"label":"planning","text":"what order should we build these pieces in"}
+{"label":"troubleshooting","text":"the new release returns an internal server error"}
+{"label":"troubleshooting","text":"the model weights are failing to load"}
+{"label":"troubleshooting","text":"the build passed but the service will not start"}
+{"label":"troubleshooting","text":"why did the health check fail"}
+{"label":"troubleshooting","text":"the request times out after the cold start"}
+{"label":"creative","text":"come up with a name for this project"}
+{"label":"creative","text":"write a funny opening line"}
+{"label":"creative","text":"brainstorm a simple game mechanic"}
+{"label":"creative","text":"imagine a fictional island"}
+{"label":"creative","text":"give me three unusual concepts"}

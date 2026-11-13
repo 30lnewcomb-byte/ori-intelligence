@@ -44,7 +44,7 @@ def score_completion(model, tokenizer, prompt: str, expected: str) -> float:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data", default="data/ori_eval.jsonl")
+    parser.add_argument("--data", default="tensorflow_core/data/ori_eval_expanded.jsonl")
     parser.add_argument("--artifact", default="artifacts/ori-small")
     parser.add_argument(
         "--report",
@@ -53,7 +53,7 @@ def main() -> None:
     args = parser.parse_args()
 
     artifact = Path(args.artifact)
-    tokenizer = OriTokenizer.load(artifact / "vocab.json")
+    tokenizer = OriTokenizer.load(artifact / "ori_tokenizer.model")
     config = OriLMConfig(
         **json.loads((artifact / "config.json").read_text(encoding="utf-8"))
     )

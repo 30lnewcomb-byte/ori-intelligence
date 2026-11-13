@@ -15,6 +15,23 @@ echo "Installing Ori Intelligence runtime dependencies..."
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
+# A full rebuild is intentionally blocked unless a second, explicit safety
+# switch is also supplied. Incremental fine-tuning is the normal improvement
+# path and never calls the from-scratch trainers.
+if [[ "${ORI_TRAIN_MODELS:-false}" == "true" \
+      && "${ORI_ALLOW_FULL_REBUILD:-false}" != "true" ]]; then
+  echo "ERROR: Full model rebuilding is blocked."
+  echo "Use ORI_FINE_TUNE_REVISION to continue from the existing checkpoints."
+  echo "A full rebuild requires both ORI_TRAIN_MODELS=true and ORI_ALLOW_FULL_REBUILD=true."
+  exit 1
+fi
+
+if [[ -n "${ORI_FINE_TUNE_REVISION:-}" \
+      && "${ORI_TRAIN_MODELS:-false}" == "true" ]]; then
+  echo "ERROR: Incremental fine-tuning and full rebuilding cannot run together."
+  exit 1
+fi
+
 base_models_cached() {
   [[ -f "${CACHE_DIR}/models/ori_core.keras" \
       && -f "${CACHE_DIR}/artifacts/ori-small/config.json" \
@@ -65,14 +82,14 @@ if base_models_cached; then
   restore_cached_models
 elif [[ "${ORI_TRAIN_MODELS:-false}" != "true" ]]; then
   echo "ERROR: No cached Core/Ori Small models are available."
-  echo "Restore the artifacts or deliberately set ORI_TRAIN_MODELS=true in a training build."
+  echo "Restore the artifacts or deliberately authorize a full rebuild."
   exit 1
 fi
 
-# A cache hit must not silently skip an explicitly requested training run.
-# ORI_TRAIN_MODELS rebuilds Core and Ori Small; it is intentionally expensive.
+# This old path remains available only behind the two-switch guard above.
+# It is not the recommended way to improve an existing model.
 if [[ "${ORI_TRAIN_MODELS:-false}" == "true" ]]; then
-  echo "ORI_TRAIN_MODELS=true: training Ori Core and Ori Small as explicitly requested..."
+  echo "Explicitly authorized full rebuild: training Core and Ori Small from scratch..."
   python tensorflow_core/train_core.py \
     --output "${CORE_MODEL}" \
     --epochs "${ORI_CORE_EPOCHS:-30}" \
@@ -89,11 +106,68 @@ if [[ "${ORI_TRAIN_MODELS:-false}" == "true" ]]; then
   cache_base_models
 fi
 
-# Specialist training can be requested independently while reusing the
-# existing Core/Ori Small cache. No specialist training happens by default.
-if [[ "${ORI_TRAIN_MODELS:-false}" == "true" \
-      || "${ORI_TRAIN_SPECIALISTS:-false}" == "true" ]]; then
-  echo "Training Ori's coding and 3D workers as explicitly requested..."
+# Fine-tune an exact revision once. The marker lives beside the cached model
+# artifacts, so leaving the environment variable set will not repeat training
+# on every subsequent code deployment.
+if [[ -n "${ORI_FINE_TUNE_REVISION:-}" ]]; then
+  if [[ ! "${ORI_FINE_TUNE_REVISION}" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
+    echo "ERROR: ORI_FINE_TUNE_REVISION must be 1-64 letters, numbers, dots, underscores, or hyphens."
+    exit 1
+  fi
+
+  FINE_TUNE_MARKER="${CACHE_DIR}/fine-tune/${ORI_FINE_TUNE_REVISION}.done"
+  if [[ -f "${FINE_TUNE_MARKER}" ]]; then
+    echo "Fine-tune revision ${ORI_FINE_TUNE_REVISION} was already processed; skipping training."
+  else
+    echo "Preparing one-shot incremental fine-tuning from the cached checkpoints..."
+    CANDIDATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ori-finetune.XXXXXX")"
+    trap 'rm -rf "${CANDIDATE_ROOT}"' EXIT
+
+    python tensorflow_core/fine_tune_existing.py \
+      --core-input "${CORE_MODEL}" \
+      --core-output "${CANDIDATE_ROOT}/models/ori_core.keras" \
+      --small-input-dir "${LM_DIR}" \
+      --small-output-dir "${CANDIDATE_ROOT}/artifacts/ori-small" \
+      --core-data tensorflow_core/data/ori_core_incremental.jsonl \
+      --small-data tensorflow_core/data/ori_small_incremental.jsonl \
+      --small-replay-data tensorflow_core/data/ori_training_expanded.jsonl \
+      --small-eval-data tensorflow_core/data/ori_eval_expanded.jsonl \
+      --core-epochs "${ORI_CORE_FINE_TUNE_EPOCHS:-1}" \
+      --small-epochs "${ORI_SMALL_FINE_TUNE_EPOCHS:-1}" \
+      --batch-size "${ORI_FINE_TUNE_BATCH_SIZE:-2}" \
+      --summary "${CANDIDATE_ROOT}/fine-tune-summary.json"
+
+    if [[ ! -f "${CANDIDATE_ROOT}/models/ori_core.keras" \
+          || ! -f "${CANDIDATE_ROOT}/artifacts/ori-small/config.json" \
+          || ! -f "${CANDIDATE_ROOT}/artifacts/ori-small/ori_tokenizer.model" \
+          || ! -f "${CANDIDATE_ROOT}/artifacts/ori-small/model.weights.h5" ]]; then
+      echo "ERROR: Incremental fine-tuning did not produce a complete candidate artifact set."
+      exit 1
+    fi
+
+    echo "Incremental evaluation passed; installing the candidate-or-original outputs..."
+    cp "${CANDIDATE_ROOT}/models/ori_core.keras" "${CORE_MODEL}"
+    rm -rf "${LM_DIR}"
+    cp -a "${CANDIDATE_ROOT}/artifacts/ori-small" "${LM_DIR}"
+    cache_base_models
+
+    mkdir -p "$(dirname "${FINE_TUNE_MARKER}")"
+    printf '%s\n' "${ORI_FINE_TUNE_REVISION}" > "${FINE_TUNE_MARKER}.tmp"
+    mv "${FINE_TUNE_MARKER}.tmp" "${FINE_TUNE_MARKER}"
+    echo "Fine-tune revision ${ORI_FINE_TUNE_REVISION} completed and recorded."
+  fi
+fi
+
+# Specialist weights do not exist yet. Their first training is a separate,
+# explicitly authorized bootstrap and is never part of normal deployments.
+if [[ "${ORI_TRAIN_SPECIALISTS:-false}" == "true" ]]; then
+  if [[ "${ORI_ALLOW_SPECIALIST_BOOTSTRAP:-false}" != "true" ]]; then
+    echo "ERROR: Specialist bootstrap is blocked."
+    echo "It requires both ORI_TRAIN_SPECIALISTS=true and ORI_ALLOW_SPECIALIST_BOOTSTRAP=true."
+    exit 1
+  fi
+
+  echo "Explicitly authorized specialist bootstrap..."
   python tensorflow_core/train_specialists.py \
     --tokenizer "${LM_DIR}/ori_tokenizer.model" \
     --output-root artifacts \
@@ -102,7 +176,7 @@ if [[ "${ORI_TRAIN_MODELS:-false}" == "true" \
 
   cache_specialist_models
 else
-  echo "Specialist worker training is disabled; restoring only any previously cached worker artifacts."
+  echo "Specialist bootstrap is disabled; restoring only previously cached workers."
 fi
 
 echo "Ori Intelligence model preparation completed."
