@@ -415,14 +415,27 @@ async def import_models(
     ):
         raise HTTPException(status_code=401, detail="Unauthorized model transfer.")
 
-    archive_bytes = await request.body()
-    if not archive_bytes or len(archive_bytes) > 512 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="Model archive is empty or exceeds 512 MiB.")
-
-    stage_root = Path(tempfile.mkdtemp(prefix=".ori-model-import-", dir="."))
+    archive_path: Path | None = None
+    stage_root: Path | None = None
     try:
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > 512 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Model archive exceeds 512 MiB.")
+        total_bytes = 0
+        with tempfile.NamedTemporaryFile(prefix=".ori-model-upload-", suffix=".zip", dir=".", delete=False) as uploaded:
+            archive_path = Path(uploaded.name)
+            async for chunk in request.stream():
+                total_bytes += len(chunk)
+                if total_bytes > 512 * 1024 * 1024:
+                    raise HTTPException(status_code=413, detail="Model archive exceeds 512 MiB.")
+                uploaded.write(chunk)
+        if total_bytes == 0:
+            raise HTTPException(status_code=413, detail="Model archive is empty.")
+
+        stage_root = Path(tempfile.mkdtemp(prefix=".ori-model-import-", dir="."))
+        logger.info("Received disk-backed Ori model archive: bytes=%s", total_bytes)
         try:
-            with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+            with zipfile.ZipFile(archive_path) as archive:
                 members = archive.infolist()
                 allowed = (
                     "models/",
@@ -491,7 +504,10 @@ async def import_models(
             "workers_loaded": sorted(SPECIALIZED_WORKERS),
         }
     finally:
-        shutil.rmtree(stage_root, ignore_errors=True)
+        if stage_root is not None:
+            shutil.rmtree(stage_root, ignore_errors=True)
+        if archive_path is not None:
+            archive_path.unlink(missing_ok=True)
 
 
 @app.get("/")
