@@ -34,7 +34,7 @@ WORKER_ROOT = Path(os.getenv("ORI_WORKER_ROOT", "artifacts"))
 API_KEY = os.getenv("ORI_INTELLIGENCE_API_KEY", "").strip()
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-logger = logging.getLogger("ori-tensorflow-runtime")
+logger = logging.getLogger("ori-intelligence")
 
 app = FastAPI(title="Ori TensorFlow Intelligence Runtime", version=APP_VERSION)
 
@@ -399,7 +399,7 @@ def title(payload: TitleRequest, _: None = Depends(require_api_key)) -> dict[str
 @app.get("/")
 def root() -> dict[str, Any]:
     return {
-        "service": "ori-tensorflow-runtime",
+        "service": "ori-intelligence",
         "status": "online",
         "version": APP_VERSION,
         "backend": "tensorflow",
@@ -411,164 +411,13 @@ def root() -> dict[str, Any]:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "ori-tensorflow-runtime"}
+    return {"status": "ok", "service": "ori-intelligence"}
 
 
 @app.get("/v1/status")
 def status(_: None = Depends(require_api_key)) -> dict[str, Any]:
     return {
-        "service": "ori-tensorflow-runtime",
-        "status": "online",
-        "version": APP_VERSION,
-        "backend": "tensorflow",
-        "core_model_loaded": CORE_MODEL is not None,
-        "language_model_loaded": LANGUAGE_MODEL is not None,
-        "language_model_id": "ori-small" if LANGUAGE_MODEL is not None else None,
-        "workers_loaded": sorted(SPECIALIZED_WORKERS),
-    }
-
-
-@app.get("/v1/models")
-def models(_: None = Depends(require_api_key)) -> dict[str, Any]:
-    entries = [
-        {
-            "id": "ori-core",
-            "version": "0.1.0",
-            "framework": "tensorflow",
-            "task": "intent-classification",
-            "status": "ready" if CORE_MODEL is not None else "registered",
-            "labels": list(LABELS),
-        },
-        {
-            "id": "ori-small",
-            "version": APP_VERSION,
-            "framework": "tensorflow",
-            "task": "causal-language-model",
-            "status": "ready" if LANGUAGE_MODEL is not None else "registered",
-            "parameters": "compact",
-        },
-        {
-            "id": "ori-coder",
-            "version": APP_VERSION,
-            "framework": "tensorflow",
-            "task": "code-generation",
-            "status": "ready" if "coding" in SPECIALIZED_WORKERS else "registered",
-            "router_routed": True,
-        },
-        {
-            "id": "ori-3d",
-            "version": APP_VERSION,
-            "framework": "tensorflow",
-            "task": "parametric-cad-generation",
-            "status": "ready" if "3d" in SPECIALIZED_WORKERS else "registered",
-            "router_routed": True,
-        },
-    ]
-    return {"models": entries}
-
-
-@app.post("/v1/predict", response_model=PredictResponse)
-def predict(payload: PredictRequest, _: None = Depends(require_api_key)) -> PredictResponse:
-    if CORE_MODEL is None:
-        raise HTTPException(status_code=503, detail="No trained TensorFlow core model is loaded.")
-    result = CORE_MODEL.predict(payload.text)
-    return PredictResponse(
-        model="ori-core",
-        version="0.1.0",
-        label=result.label,
-        confidence=result.confidence,
-    )
-
-
-@app.post("/v1/chat")
-def chat(payload: ChatRequest, _: None = Depends(require_api_key)) -> dict[str, Any]:
-    latest_user = next(
-        (
-            message.content
-            for message in reversed(payload.messages)
-            if message.role == "user"
-        ),
-        "",
-    )
-    specialized = run_specialized_task(latest_user)
-    if specialized is not None:
-        content, worker_id = specialized
-        return {
-            "content": content,
-            "model": "ori-small",
-            "version": APP_VERSION,
-            "worker": worker_id,
-            "finish_reason": "worker",
-            "tool_calls": [],
-        }
-
-    if LANGUAGE_MODEL is None:
-        raise HTTPException(status_code=503, detail="No trained Ori TensorFlow language model is loaded.")
-
-    prompt = build_prompt(payload.messages, payload.tools)
-    model, tokenizer = LANGUAGE_MODEL
-    content = ""
-    finish_reason = "length"
-    for attempt in range(2):
-        attempt_temperature = max(
-            0.20,
-            min(0.70, payload.temperature + (0.05 * attempt)),
-        )
-        candidate, candidate_finish = model.generate(
-            tokenizer,
-            prompt,
-            max_new_tokens=min(payload.max_tokens, 72),
-            temperature=attempt_temperature,
-            top_k=payload.top_k,
-        )
-        # Keep role markers and tool-channel text from leaking into the
-        # user-facing answer when the small model samples them.
-        for marker in ("User:", "Tool:"):
-            candidate = candidate.split(marker, 1)[0].strip()
-        candidate = re.sub(r"^Ori:\s*", "", candidate).strip()
-        _, candidate_tool_calls = normalize_tool_call(candidate, payload.tools)
-        if candidate_tool_calls or response_looks_usable(candidate):
-            content = candidate
-            finish_reason = candidate_finish
-            break
-        logger.warning("Rejected low-quality Ori generation attempt %s: %r", attempt + 1, candidate[:160])
-
-    content, tool_calls = normalize_tool_call(content, payload.tools)
-    if not content and not tool_calls:
-        raise HTTPException(status_code=502, detail="Ori's TensorFlow language model produced no usable text.")
-
-
-    return {
-        "content": content,
-        "model": "ori-small",
-        "worker": None,
-        "version": APP_VERSION,
-        "finish_reason": finish_reason,
-        "tool_calls": tool_calls,
-    }
-
-@app.get("/")
-def root() -> dict[str, Any]:
-    return {
-        "service": "ori-tensorflow-runtime",
-        "status": "online",
-        "version": APP_VERSION,
-        "backend": "tensorflow",
-        "health": "/health",
-        "status_endpoint": "/v1/status",
-        "models_endpoint": "/v1/models",
-    }
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": "ori-tensorflow-runtime"}
-
-
-@app.get("/v1/status")
-def status(_: None = Depends(require_api_key)) -> dict[str, Any]:
-    return {
-        "service": "ori-tensorflow-runtime",
+        "service": "ori-intelligence",
         "status": "online",
         "version": APP_VERSION,
         "backend": "tensorflow",
