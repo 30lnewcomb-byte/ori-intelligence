@@ -90,7 +90,10 @@ Runtime:
 - `ORI_LM_DIR` — path to the `ori-small` artifact directory; defaults to `artifacts/ori-small`.
 - `ORI_MODEL_DIR` — path to the intent-classifier model directory; defaults to `models`.
 - `LOG_LEVEL` — runtime log level; defaults to `INFO`.
-- `ORI_TRAIN_MODELS` — opt-in build flag; defaults to `false` so normal deployments do not train models.
+- `ORI_TRAIN_MODELS` — opt-in full training flag; defaults to `false`. When enabled, rebuilds Core, Ori Small, and both specialists.
+- `ORI_TRAIN_SPECIALISTS` — opt-in worker-only training flag; defaults to `false`. When enabled, trains `ori-coder` and `ori-3d` while reusing cached Core/Ori Small artifacts.
+
+A normal deploy restores cached models without training. A deliberate specialist-only build can set `ORI_TRAIN_SPECIALISTS=true`; its finished worker artifacts are saved back into Render's build cache for later deploys. Training is not triggered by ordinary code changes.
 
 Web application:
 
